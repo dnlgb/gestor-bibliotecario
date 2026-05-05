@@ -53,4 +53,20 @@ app.post('/notificaciones/ejecutar-revision', async (req, res) => {
     /* se devuelve un mensaje de éxito*/
     res.json({ mensaje: 'Revisión ejecutada' });
 });
+app.get('/prestamos/por-vencer', async (req, res) => {
+    try {
+    const result = await pool.query(
+        `SELECT p.*, u.nombre, u.email, l.titulo, l.autor
+         FROM prestamos p 
+         JOIN usuarios u ON p.usuario_id = u.id 
+         JOIN libros l ON p.libro_id = l.id
+         WHERE p.estado = 'activo' 
+         AND p.notificacion_enviada = FALSE
+         AND p.fecha_devolucion_esperada BETWEEN NOW() AND NOW() + INTERVAL '48 hours'`
+    );
+    res.json(result.rows);
+    } catch (err) {
+    res.status(500).json({ error: 'Error al consultar' });
+    }
+});/* se consultan los préstamos por vencer*/
 app.listen(PORT, () => console.log(`✅ Servicio Notificaciones corriendo en puerto ${PORT}`));

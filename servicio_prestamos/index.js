@@ -27,6 +27,13 @@ const token = req.headers.authorization?.split(' ')[1];
 }
 };
 
+const verificarRol = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.rol)) {
+    return res.status(403).json({ error: 'No tienes permisos para esta acción' });
+  }
+  next();
+};
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', servicio: 'prestamos', puerto: PORT, mensaje: 'hola!' });
@@ -38,7 +45,7 @@ const calcularFechaDevolucion = (rol) => {
     return fecha;
 };
 
-app.post('/prestamos', authMiddleware, async (req, res) => {
+app.post('/prestamos', authMiddleware, verificarRol('estudiante', 'docente'), async (req, res) => {
     const { libro_id } = req.body;
     console.log('Buscando libro en:', `${CATALOGO_URL}/catalogo/libros/${libro_id}`);
     if (!libro_id) return res.status(400).json({ error: 'libro_id es requerido' });
@@ -107,6 +114,49 @@ app.get('/prestamos/por-vencer', async (req, res) => {
     res.json(result.rows);
     } catch (err) {
     res.status(500).json({ error: 'Error al consultar' });
+    }
+});
+// Todos los préstamos (solo bibliotecario)
+app.get('/prestamos', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
+    try {
+      const { estado } = req.query;
+      let query = `SELECT p.*, u.nombre as usuario_nombre, u.email as usuario_email,
+                   l.titulo, l.autor FROM prestamos p
+                   JOIN usuarios u ON p.usuario_id = u.id
+                   JOIN libros l ON p.libro_id = l.id WHERE 1=1`;
+    const params = [];
+    if (estado) { params.push(estado); query += ` AND p.estado = $${params.length}`; }
+    query += ' ORDER BY p.fecha_salida DESC';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Error al listar préstamos' });
+    }
+});
+
+  // Estadísticas (solo bibliotecario)
+app.get('/prestamos/estadisticas', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
+    try {
+        /* se consultan las estadísticas*/
+    const [activos, devueltos, vencidos, porFacultad, topLibros] = await Promise.all([
+        pool.query("SELECT COUNT(*) FROM prestamos WHERE estado='activo'"),
+        pool.query("SELECT COUNT(*) FROM prestamos WHERE estado='devuelto'"),
+        pool.query("SELECT COUNT(*) FROM prestamos WHERE estado='vencido'"),
+        pool.query(`SELECT u.facultad, COUNT(*) as prestamos FROM prestamos p
+                    JOIN usuarios u ON p.usuario_id = u.id GROUP BY u.facultad ORDER BY prestamos DESC`),
+        pool.query(`SELECT l.titulo, COUNT(*) as veces_prestado FROM prestamos p
+                    JOIN libros l ON p.libro_id = l.id GROUP BY l.titulo ORDER BY veces_prestado DESC LIMIT 5`)
+    ]);
+      /* se devuelven las estadísticas*/
+      res.json({
+        activos: parseInt(activos.rows[0].count),
+        devueltos: parseInt(devueltos.rows[0].count),
+        vencidos: parseInt(vencidos.rows[0].count),
+        por_facultad: porFacultad.rows,
+        top_libros: topLibros.rows
+    });
+    } catch (err) {
+    res.status(500).json({ error: 'Error en estadísticas' });
     }
 });
 app.listen(PORT, () => console.log(`✅ Servicio Préstamos corriendo en puerto ${PORT}`));

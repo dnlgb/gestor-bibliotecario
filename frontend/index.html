@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BiblioUni — Acceso</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <link href="css/styles.css" rel="stylesheet">
+  <style>
+    .auth-page::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 20% 80%, rgba(59,111,212,.18) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(44,74,140,.25) 0%, transparent 50%);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="auth-page">
+
+  <div class="auth-card">
+    <!-- Logo -->
+    <div class="text-center mb-4">
+      <div class="auth-logo-icon mb-3">
+        <i class="fas fa-book-open"></i>
+      </div>
+      <h5 class="fw-700 mb-0" style="font-weight:700;color:#0f172a;">Biblioteca Universitaria</h5>
+      <p class="text-muted mb-0" style="font-size:.82rem;">Sistema de Gestión Académica</p>
+    </div>
+
+    <!-- Alert -->
+    <div id="alertBox"></div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="authTabs" role="tablist">
+      <li class="nav-item" style="flex:1;text-align:center;">
+        <a class="nav-link active" id="tabLogin" href="#" onclick="switchTab('login');return false;">
+          <i class="fas fa-sign-in-alt me-1"></i>Iniciar Sesión
+        </a>
+      </li>
+      <li class="nav-item" style="flex:1;text-align:center;">
+        <a class="nav-link" id="tabRegister" href="#" onclick="switchTab('register');return false;">
+          <i class="fas fa-user-plus me-1"></i>Registrarse
+        </a>
+      </li>
+    </ul>
+
+    <!-- ── LOGIN ───────────────────────────────────────── -->
+    <div id="panelLogin">
+      <form id="formLogin" onsubmit="handleLogin(event)">
+        <div class="mb-3">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" id="loginEmail"
+                 placeholder="correo@universidad.edu" autocomplete="email" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Contraseña</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="loginPass"
+                   placeholder="••••••••" autocomplete="current-password" required>
+            <button type="button" class="btn btn-outline-secondary"
+                    onclick="togglePass('loginPass',this)" tabindex="-1">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2 mt-1" id="btnLogin">
+          <span id="loginBtnTxt">Iniciar Sesión</span>
+          <span class="spinner-border spinner-border-sm d-none ms-2" id="spinLogin"></span>
+        </button>
+      </form>
+    </div>
+
+    <!-- ── REGISTRO ────────────────────────────────────── -->
+    <div id="panelRegister" class="d-none">
+      <form id="formRegister" onsubmit="handleRegister(event)">
+        <div class="mb-3">
+          <label class="form-label">Nombre completo</label>
+          <input type="text" class="form-control" id="regNombre"
+                 placeholder="Tu nombre completo" autocomplete="name" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" id="regEmail"
+                 placeholder="correo@universidad.edu" autocomplete="email" required>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Rol</label>
+            <select class="form-select" id="regRol" required onchange="onRolChange()">
+              <option value="">Seleccionar...</option>
+              <option value="estudiante">Estudiante</option>
+              <option value="docente">Docente</option>
+              <option value="bibliotecario">Bibliotecario</option>
+            </select>
+          </div>
+          <div class="col-6" id="facultadWrap">
+            <label class="form-label">Facultad</label>
+            <select class="form-select" id="regFacultad">
+              <option value="">— Ninguna —</option>
+              <option value="Ingeniería">Ingeniería</option>
+              <option value="Medicina">Medicina</option>
+              <option value="Derecho">Derecho</option>
+              <option value="Ciencias">Ciencias</option>
+              <option value="Humanidades">Humanidades</option>
+              <option value="Economía">Economía</option>
+              <option value="Arquitectura">Arquitectura</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Contraseña</label>
+          <div class="input-group">
+            <input type="password" class="form-control" id="regPass"
+                   placeholder="Mínimo 6 caracteres" minlength="6"
+                   autocomplete="new-password" required>
+            <button type="button" class="btn btn-outline-secondary"
+                    onclick="togglePass('regPass',this)" tabindex="-1">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2 mt-1" id="btnRegister">
+          <span id="regBtnTxt">Crear Cuenta</span>
+          <span class="spinner-border spinner-border-sm d-none ms-2" id="spinRegister"></span>
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-muted mt-4 mb-0" style="font-size:.73rem;">
+      BiblioUni &copy; 2026 &mdash; Sistema de Gestión de Biblioteca Universitaria
+    </p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    /* Redirigir si ya está autenticado */
+    if (Auth.isLoggedIn()) window.location.replace('dashboard.html');
+
+    /* ── Tab switching ──────────────────────────────────── */
+    function switchTab(tab) {
+      const isLogin = tab === 'login';
+      document.getElementById('panelLogin').classList.toggle('d-none', !isLogin);
+      document.getElementById('panelRegister').classList.toggle('d-none', isLogin);
+      document.getElementById('tabLogin').classList.toggle('active', isLogin);
+      document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+      document.getElementById('alertBox').innerHTML = '';
+    }
+
+    /* ── Show/hide password ─────────────────────────────── */
+    function togglePass(id, btn) {
+      const inp  = document.getElementById(id);
+      const icon = btn.querySelector('i');
+      const show = inp.type === 'password';
+      inp.type   = show ? 'text' : 'password';
+      icon.classList.toggle('fa-eye',      !show);
+      icon.classList.toggle('fa-eye-slash', show);
+    }
+
+    /* ── Facultad visibility ────────────────────────────── */
+    function onRolChange() {
+      const rol  = document.getElementById('regRol').value;
+      const wrap = document.getElementById('facultadWrap');
+      wrap.style.opacity = rol === 'bibliotecario' ? '.45' : '1';
+      if (rol === 'bibliotecario') document.getElementById('regFacultad').value = '';
+    }
+
+    /* ── Alert helper ───────────────────────────────────── */
+    function showAlert(msg, type = 'danger') {
+      document.getElementById('alertBox').innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show py-2 mb-3" style="font-size:.845rem;" role="alert">
+          <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>${msg}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" style="padding:.45rem"></button>
+        </div>`;
+    }
+
+    /* ── Login ──────────────────────────────────────────── */
+    async function handleLogin(e) {
+      e.preventDefault();
+      setLoading('btnLogin', 'spinLogin', true);
+      try {
+        const data = await API.login(
+          document.getElementById('loginEmail').value.trim(),
+          document.getElementById('loginPass').value,
+        );
+        Auth.save(data.token, data.usuario);
+        window.location.replace('dashboard.html');
+      } catch (err) {
+        showAlert(err.error || 'Credenciales inválidas. Intenta de nuevo.');
+        setLoading('btnLogin', 'spinLogin', false);
+      }
+    }
+
+    /* ── Registro ───────────────────────────────────────── */
+    async function handleRegister(e) {
+      e.preventDefault();
+      setLoading('btnRegister', 'spinRegister', true);
+      try {
+        await API.registro(
+          document.getElementById('regNombre').value.trim(),
+          document.getElementById('regEmail').value.trim(),
+          document.getElementById('regPass').value,
+          document.getElementById('regRol').value,
+          document.getElementById('regFacultad').value,
+        );
+        showAlert('¡Cuenta creada! Ahora puedes iniciar sesión.', 'success');
+        switchTab('login');
+        document.getElementById('loginEmail').value = document.getElementById('regEmail').value;
+      } catch (err) {
+        showAlert(err.error || 'Error al registrar usuario.');
+      } finally {
+        setLoading('btnRegister', 'spinRegister', false);
+      }
+    }
+
+    /* ── Loading helper ─────────────────────────────────── */
+    function setLoading(btnId, spinnerId, loading) {
+      const btn     = document.getElementById(btnId);
+      const spinner = document.getElementById(spinnerId);
+      btn.disabled  = loading;
+      spinner.classList.toggle('d-none', !loading);
+    }
+  </script>
+</body>
+</html>

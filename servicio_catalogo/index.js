@@ -25,6 +25,13 @@ if (!token) return res.status(401).json({ error: 'Token requerido' });
 }
 };
 
+const verificarRol = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.rol)) {
+    return res.status(403).json({ error: 'No tienes permisos para esta acción' });
+  }
+  next();
+};
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', servicio: 'catalogo', puerto: PORT });
@@ -55,7 +62,7 @@ try {
     res.status(500).json({ error: 'Error al buscar libros' });
     }
 });
-app.post('/catalogo/libros', authMiddleware, async (req, res) => {
+app.post('/catalogo/libros', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
     const { isbn, titulo, autor, editorial, anio_publicacion, categoria, cantidad_total, descripcion } = req.body;
 /* isbn es el ISBN del libro, titulo es el título del libro, autor es el autor del libro, editorial es la editorial del libro, anio_publicacion es el año de publicación del libro, categoria es la categoría del libro, cantidad_total es la cantidad total de libros y descripcion es la descripción del libro*/
 if (!isbn || !titulo || !autor) {
@@ -75,7 +82,7 @@ try {
         res.status(500).json({ error: 'Error al crear libro' });
     }
 });
-app.put('/catalogo/libros/:id', authMiddleware, async (req, res) => {
+app.put('/catalogo/libros/:id', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
     const { titulo, autor, editorial, anio_publicacion, categoria, cantidad_total, descripcion } = req.body;
     try {
         /* se actualiza el libro*/
@@ -94,7 +101,7 @@ app.put('/catalogo/libros/:id', authMiddleware, async (req, res) => {
     }
 });
 /* id es el ID del libro*/
-app.delete('/catalogo/libros/:id', authMiddleware, async (req, res) => {
+app.delete('/catalogo/libros/:id', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
     try {
         /* se elimina el libro*/
         await pool.query('DELETE FROM libros WHERE id = $1', [req.params.id]);

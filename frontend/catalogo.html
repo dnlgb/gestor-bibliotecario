@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BiblioUni — Catálogo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <link href="css/styles.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="app-layout">
+  <div id="sidebarContainer"></div>
+
+  <div class="main-wrapper">
+    <div id="topbarContainer"></div>
+
+    <main class="main-content">
+
+      <!-- Header -->
+      <div class="page-header d-flex align-items-center justify-content-between">
+        <div>
+          <h1 class="page-title">Catálogo de Libros</h1>
+          <p class="page-subtitle">Busca y solicita libros disponibles en la biblioteca</p>
+        </div>
+        <div id="btnAgregarWrap"></div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label">Buscar</label>
+            <div class="input-group">
+              <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+              <input type="text" class="form-control" id="inputBuscar"
+                     placeholder="Título, autor o ISBN..."
+                     oninput="debouncedBuscar()">
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Categoría</label>
+            <select class="form-select" id="selectCategoria" onchange="buscarLibros()">
+              <option value="">Todas las categorías</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Disponibilidad</label>
+            <select class="form-select" id="selectDisponible" onchange="buscarLibros()">
+              <option value="">Todos</option>
+              <option value="true">Solo disponibles</option>
+            </select>
+          </div>
+          <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-primary flex-grow-1" onclick="buscarLibros()">
+              <i class="fas fa-search"></i>
+            </button>
+            <button class="btn btn-outline-secondary" onclick="limpiarFiltros()" title="Limpiar">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results info -->
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <span class="text-muted-sm" id="resultadosInfo"></span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" id="btnGrid" onclick="setVista('grid')" title="Cuadrícula">
+            <i class="fas fa-th-large"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="btnList" onclick="setVista('list')" title="Lista">
+            <i class="fas fa-list"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Books container -->
+      <div id="librosContainer">
+        <div class="loading-box">
+          <div class="spinner-border spinner-border-sm text-primary"></div> Cargando catálogo...
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── Modal: Agregar / Editar Libro ──────────────────────── -->
+<div class="modal fade" id="modalLibro" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border-radius:12px;overflow:hidden;">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLibroTitle">Agregar Libro</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form id="formLibro" onsubmit="guardarLibro(event)">
+          <input type="hidden" id="libroEditId">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">ISBN <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="libroIsbn" required placeholder="978-X-XXX-XXXXX-X">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Título <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="libroTitulo" required placeholder="Título del libro">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Autor <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="libroAutor" required placeholder="Nombre del autor">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Editorial</label>
+              <input type="text" class="form-control" id="libroEditorial" placeholder="Editorial">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Año publicación</label>
+              <input type="number" class="form-control" id="libroAnio"
+                     min="1800" max="2099" placeholder="2024">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Categoría</label>
+              <select class="form-select" id="libroCategoria">
+                <option value="">Sin categoría</option>
+                <option value="Ciencias">Ciencias</option>
+                <option value="Ingeniería">Ingeniería</option>
+                <option value="Medicina">Medicina</option>
+                <option value="Derecho">Derecho</option>
+                <option value="Humanidades">Humanidades</option>
+                <option value="Economía">Economía</option>
+                <option value="Historia">Historia</option>
+                <option value="Literatura">Literatura</option>
+                <option value="Tecnología">Tecnología</option>
+                <option value="Matemáticas">Matemáticas</option>
+                <option value="Filosofía">Filosofía</option>
+                <option value="Arte">Arte</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Cantidad total</label>
+              <input type="number" class="form-control" id="libroCantidad" min="1" value="1">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Descripción</label>
+              <textarea class="form-control" id="libroDescripcion" rows="3"
+                        placeholder="Breve descripción del libro..."></textarea>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnGuardarLibro">
+              <span id="btnGuardarTxt">Guardar Libro</span>
+              <span class="spinner-border spinner-border-sm d-none ms-1" id="spinGuardar"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Detalle de Libro ────────────────────────────── -->
+<div class="modal fade" id="modalDetalle" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="border-radius:12px;overflow:hidden;">
+      <div class="modal-header">
+        <h5 class="modal-title">Detalle del Libro</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4" id="detalleBody"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/components.js"></script>
+<script src="js/catalogo.js"></script>
+</body>
+</html>
