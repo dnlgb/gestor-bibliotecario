@@ -4,11 +4,13 @@ const cors = require('cors');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
 const fetch = require('node-fetch');
+const helmet = require('helmet');
 
 const app = express();
 const PORT = process.env.PORT || 5003;
 const PRESTAMOS_URL = process.env.PRESTAMOS_URL || 'http://localhost:5008';
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 

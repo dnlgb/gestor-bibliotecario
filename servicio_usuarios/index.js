@@ -15,12 +15,28 @@ pool.query('SELECT NOW()', (err, res) => {
 });
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Demasiados intentos, espera 15 minutos' }
+});
+
+const validar = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+  next();
+};
 
 // Health check
 /* Nodemon es una utilidad que monitoriza los cambios en los archivos de tu aplicación Node. js
@@ -29,7 +45,11 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', servicio: 'usuarios', puerto: PORT, mensaje: 'hola!' });
     res.json({ status: 'ok', servicio: 'usuarios', puerto: PORT });
 });
-app.post('/auth/registro', async (req, res) => {
+app.post('/auth/registro',
+  body('email').isEmail().withMessage('Formato de email inválido'),
+  body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener mínimo 6 caracteres'),
+  validar,
+  async (req, res) => {
     const { nombre, email, password, rol, facultad } = req.body;
 
     if (!nombre || !email || !password || !rol) {
@@ -56,7 +76,7 @@ app.post('/auth/registro', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/login', loginLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {

@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const fetch = require('node-fetch');
+const helmet = require('helmet');
+const { body, validationResult } = require('express-validator');
 const { Pool } = require('pg');
 
 const app = express();
@@ -12,8 +14,15 @@ const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:5001';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+const validar = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+  next();
+};
 
 // Middleware de autenticación
 const authMiddleware = (req, res, next) => {
@@ -45,7 +54,12 @@ const calcularFechaDevolucion = (rol) => {
     return fecha;
 };
 
-app.post('/prestamos', authMiddleware, verificarRol('estudiante', 'docente'), async (req, res) => {
+app.post('/prestamos',
+  authMiddleware,
+  verificarRol('estudiante', 'docente'),
+  body('libro_id').isInt({ min: 1 }).withMessage('libro_id debe ser un número entero positivo'),
+  validar,
+  async (req, res) => {
     const { libro_id } = req.body;
     console.log('Buscando libro en:', `${CATALOGO_URL}/catalogo/libros/${libro_id}`);
     if (!libro_id) return res.status(400).json({ error: 'libro_id es requerido' });

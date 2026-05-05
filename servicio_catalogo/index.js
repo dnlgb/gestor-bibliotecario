@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const helmet = require('helmet');
+const { body, validationResult } = require('express-validator');
 const { Pool } = require('pg');
 
 const app = express();
@@ -10,8 +12,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'biblioteca_secret_2024';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+const validar = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ error: errors.array()[0].msg });
+  next();
+};
 
 // Middleware de autenticación
 const authMiddleware = (req, res, next) => {
@@ -62,7 +71,13 @@ try {
     res.status(500).json({ error: 'Error al buscar libros' });
     }
 });
-app.post('/catalogo/libros', authMiddleware, verificarRol('bibliotecario'), async (req, res) => {
+app.post('/catalogo/libros',
+  authMiddleware,
+  verificarRol('bibliotecario'),
+  body('isbn').notEmpty().isLength({ max: 20 }).withMessage('ISBN requerido (máximo 20 caracteres)'),
+  body('titulo').isLength({ min: 3 }).withMessage('El título debe tener mínimo 3 caracteres'),
+  validar,
+  async (req, res) => {
     const { isbn, titulo, autor, editorial, anio_publicacion, categoria, cantidad_total, descripcion } = req.body;
 /* isbn es el ISBN del libro, titulo es el título del libro, autor es el autor del libro, editorial es la editorial del libro, anio_publicacion es el año de publicación del libro, categoria es la categoría del libro, cantidad_total es la cantidad total de libros y descripcion es la descripción del libro*/
 if (!isbn || !titulo || !autor) {
