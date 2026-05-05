@@ -140,6 +140,26 @@ const API = {
     return this.request(`${SERVICES.PRESTAMOS}/prestamos/por-vencer`);
   },
 
+  /**
+   * Todos los préstamos del sistema (requiere rol bibliotecario)
+   * @param {Object} params  { estado }
+   */
+  getPrestamos(params = {}) {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
+    ).toString();
+    return this.request(`${SERVICES.PRESTAMOS}/prestamos${qs ? '?' + qs : ''}`, {
+      headers: this.headers(),
+    });
+  },
+
+  /** Estadísticas del sistema (requiere rol bibliotecario) */
+  getEstadisticas() {
+    return this.request(`${SERVICES.PRESTAMOS}/prestamos/estadisticas`, {
+      headers: this.headers(),
+    });
+  },
+
   /* ── NOTIFICACIONES (puerto 5003) ───────────────────────────── */
 
   /** Ejecutar revisión manual de notificaciones */

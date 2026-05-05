@@ -2,13 +2,14 @@
  * reportes.js — Dashboard de reportes (solo bibliotecarios)
  *
  * Fuentes de datos:
- *   - GET /catalogo/libros   → total, disponibles, categorías, top
- *   - GET /prestamos/por-vencer → préstamos urgentes, facultades
- *   - localStorage           → préstamos por estado (sesión actual)
+ *   - GET /catalogo/libros          → total libros, disponibles, categorías
+ *   - GET /prestamos/estadisticas   → activos, devueltos, vencidos, por_facultad, top_libros
+ *   - GET /prestamos/por-vencer     → tabla de vencimientos próximos
  */
 
 let libros       = [];
 let porVencer    = [];
+let estadisticas = null;
 
 const PALETTE = [
   '#3b6fd4','#22c55e','#f59e0b','#ef4444','#8b5cf6',
@@ -29,13 +30,15 @@ const PALETTE = [
 /* ── Carga principal ─────────────────────────────────────────── */
 
 async function cargarReportes() {
-  const [librosRes, vencerRes] = await Promise.allSettled([
+  const [librosRes, vencerRes, statsRes] = await Promise.allSettled([
     API.getLibros(),
     API.getPrestamosVencer(),
+    API.getEstadisticas(),
   ]);
 
-  libros    = librosRes.status    === 'fulfilled' ? librosRes.value    : [];
-  porVencer = vencerRes.status    === 'fulfilled' ? vencerRes.value    : [];
+  libros       = librosRes.status === 'fulfilled' ? librosRes.value : [];
+  porVencer    = vencerRes.status === 'fulfilled' ? vencerRes.value : [];
+  estadisticas = statsRes.status  === 'fulfilled' ? statsRes.value  : null;
 
   renderStats();
   renderChartEstado();
@@ -53,30 +56,44 @@ function renderStats() {
   document.getElementById('rStatVencer').textContent = porVencer.length;
   document.getElementById('rStatCats').textContent   =
     new Set(libros.map(l => l.categoria).filter(Boolean)).size;
+
+  /* Añadir contadores de préstamos si tenemos estadísticas reales */
+  if (estadisticas) {
+    const extra = document.getElementById('statsExtraBadges');
+    if (extra) {
+      extra.innerHTML = `
+        <span class="badge bg-primary me-1">Activos: ${estadisticas.activos}</span>
+        <span class="badge bg-success me-1">Devueltos: ${estadisticas.devueltos}</span>
+        <span class="badge bg-danger">Vencidos: ${estadisticas.vencidos}</span>`;
+    }
+  }
 }
 
 /* ── Chart 1: Préstamos por estado ───────────────────────────── */
 
 function renderChartEstado() {
-  const todos = Auth.getPrestamosLocales();
+  let activos, devueltos, vencidos;
 
-  const activos   = todos.filter(p => p.estado === 'activo').length;
-  const devueltos = todos.filter(p => p.estado === 'devuelto').length;
-  const vencidos  = todos.filter(p => {
-    if (p.estado !== 'activo') return false;
-    return Components.diasRestantes(p.fecha_devolucion_esperada) < 0;
-  }).length;
+  if (estadisticas) {
+    /* Datos reales del servidor */
+    activos   = Math.max((estadisticas.activos || 0) - (estadisticas.vencidos || 0), 0);
+    devueltos = estadisticas.devueltos || 0;
+    vencidos  = estadisticas.vencidos  || 0;
+  } else {
+    /* Fallback: localStorage */
+    const todos = Auth.getPrestamosLocales();
+    vencidos  = todos.filter(p => p.estado === 'activo' &&
+      Components.diasRestantes(p.fecha_devolucion_esperada) < 0).length;
+    activos   = Math.max(todos.filter(p => p.estado === 'activo').length - vencidos, 0);
+    devueltos = todos.filter(p => p.estado === 'devuelto').length;
+  }
 
-  /* Agregar préstamos del sistema (por-vencer) */
-  const sistemaPV = porVencer.length;
-
-  const labels = ['Activos', 'Devueltos', 'Vencidos', 'Por Vencer (sistema)'];
-  const values = [Math.max(activos - vencidos, 0), devueltos, vencidos, sistemaPV];
+  const labels = ['Activos', 'Devueltos', 'Vencidos', 'Por Vencer (48 h)'];
+  const values = [activos, devueltos, vencidos, porVencer.length];
   const colors = ['#3b6fd4', '#22c55e', '#ef4444', '#f59e0b'];
 
   dibujarPie('chartEstado', labels, values, colors);
 
-  /* Leyenda personalizada */
   document.getElementById('legendEstado').innerHTML = labels.map((l, i) => `
     <div class="d-flex align-items-center gap-2 mb-1" style="font-size:.8rem;">
       <div style="width:12px;height:12px;border-radius:3px;background:${colors[i]};flex-shrink:0;"></div>
@@ -104,39 +121,41 @@ function renderChartCategorias() {
 /* ── Chart 3: Préstamos por facultad ─────────────────────────── */
 
 function renderChartFacultad() {
-  /* Extraer nombre/email de los préstamos por vencer para inferir facultad */
+  /* Datos reales de estadisticas.por_facultad */
+  if (estadisticas && estadisticas.por_facultad && estadisticas.por_facultad.length > 0) {
+    const datos  = estadisticas.por_facultad.slice(0, 8);
+    const labels = datos.map(r => r.facultad || 'Sin Facultad');
+    const values = datos.map(r => parseInt(r.prestamos));
+    dibujarDoughnut('chartFacultad', labels, values, PALETTE);
+    return;
+  }
+
+  /* Fallback: inferir de los préstamos por vencer */
   const facultadMap = {};
   porVencer.forEach(p => {
-    /* El endpoint /prestamos/por-vencer une con usuarios; 
-       si el campo facultad existe lo usamos, si no agrupamos por nombre */
     const fac = p.facultad || 'Sin Facultad';
     facultadMap[fac] = (facultadMap[fac] || 0) + 1;
   });
 
-  if (Object.keys(facultadMap).length === 0) {
-    /* Fallback: distribución de libros por categoría agrupada */
-    const catMap = {};
-    libros.forEach(l => {
-      const c = l.categoria || 'Sin categoría';
-      catMap[c] = (catMap[c] || 0) + (l.cantidad_total - l.cantidad_disponible);
-    });
-    const sorted = Object.entries(catMap).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6);
-    if (sorted.length === 0) {
-      dibujarDoughnut('chartFacultad', ['Sin datos'], [1], ['#e2e8f0']);
-      return;
-    }
-    dibujarDoughnut('chartFacultad',
-      sorted.map(([k]) => k),
-      sorted.map(([, v]) => v),
-      PALETTE);
+  if (Object.keys(facultadMap).length > 0) {
+    const sorted = Object.entries(facultadMap).sort((a, b) => b[1] - a[1]);
+    dibujarDoughnut('chartFacultad', sorted.map(([k]) => k), sorted.map(([, v]) => v), PALETTE);
     return;
   }
 
-  const sorted = Object.entries(facultadMap).sort((a, b) => b[1] - a[1]);
-  dibujarDoughnut('chartFacultad',
-    sorted.map(([k]) => k),
-    sorted.map(([, v]) => v),
-    PALETTE);
+  /* Fallback final: libros prestados por categoría */
+  const catMap = {};
+  libros.forEach(l => {
+    const c = l.categoria || 'Sin categoría';
+    const n = (l.cantidad_total || 0) - (l.cantidad_disponible || 0);
+    if (n > 0) catMap[c] = (catMap[c] || 0) + n;
+  });
+  const sorted = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  if (sorted.length === 0) {
+    dibujarDoughnut('chartFacultad', ['Sin datos'], [1], ['#e2e8f0']);
+    return;
+  }
+  dibujarDoughnut('chartFacultad', sorted.map(([k]) => k), sorted.map(([, v]) => v), PALETTE);
 }
 
 /* ── Top libros más prestados ────────────────────────────────── */
@@ -144,22 +163,31 @@ function renderChartFacultad() {
 function renderTopLibros() {
   const container = document.getElementById('topLibrosContainer');
 
-  /* Construir ranking: prestados = total - disponible */
-  const ranking = libros
-    .map(l => ({
-      titulo:    l.titulo,
-      autor:     l.autor,
-      categoria: l.categoria,
-      prestados: (l.cantidad_total || 0) - (l.cantidad_disponible || 0),
-      total:     l.cantidad_total || 1,
-    }))
-    .filter(l => l.prestados > 0)
-    .sort((a, b) => b.prestados - a.prestados)
-    .slice(0, 8);
+  let ranking;
+
+  if (estadisticas && estadisticas.top_libros && estadisticas.top_libros.length > 0) {
+    /* Datos reales del servidor */
+    ranking = estadisticas.top_libros.map(r => ({
+      titulo:   r.titulo,
+      autor:    r.autor || '—',
+      prestados: parseInt(r.veces_prestado),
+    }));
+  } else {
+    /* Fallback: ejemplares prestados actualmente (total - disponible) */
+    ranking = libros
+      .map(l => ({
+        titulo:   l.titulo,
+        autor:    l.autor,
+        prestados: (l.cantidad_total || 0) - (l.cantidad_disponible || 0),
+      }))
+      .filter(l => l.prestados > 0)
+      .sort((a, b) => b.prestados - a.prestados)
+      .slice(0, 8);
+  }
 
   if (ranking.length === 0) {
-    Components.empty(container, 'fa-chart-bar', 'Sin datos de préstamos activos',
-      'Los libros aparecerán aquí cuando tengan ejemplares prestados');
+    Components.empty(container, 'fa-chart-bar', 'Sin datos de préstamos',
+      'Los libros aparecerán aquí cuando haya préstamos registrados');
     return;
   }
 

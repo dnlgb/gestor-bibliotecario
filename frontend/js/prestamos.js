@@ -1,14 +1,13 @@
 /**
- * prestamos.js — Gestión de préstamos del usuario
+ * prestamos.js — Gestión de préstamos
  *
- * Los préstamos se guardan en localStorage al crearse (via catalogo.js).
- * La devolucion se confirma contra el microservicio y luego se actualiza
- * en localStorage.  Para bibliotecarios se muestra también la vista del
- * endpoint /prestamos/por-vencer del sistema.
+ * Estudiante / Docente : datos de localStorage (préstamos de su sesión).
+ * Bibliotecario        : datos reales de GET /prestamos (todos los préstamos).
  */
 
-let prestamosLocales  = [];
-let prestamosVencer   = [];
+let prestamosLocales  = [];   // estudiante / docente
+let todosPrestamosAPI = [];   // bibliotecario — GET /prestamos
+let prestamosVencer   = [];   // GET /prestamos/por-vencer
 let estadoActual      = 'activo';
 
 /* ── Init ─────────────────────────────────────────────────────── */
@@ -19,20 +18,23 @@ let estadoActual      = 'activo';
   document.getElementById('sidebarContainer').innerHTML = Components.sidebar('prestamos');
   document.getElementById('topbarContainer').innerHTML  = Components.topbar('Préstamos', 'Seguimiento de tus libros');
 
-  prestamosLocales = Auth.getPrestamosLocales();
-
-  /* Mostrar tab "Por Vencer" a bibliotecarios; ocultar botón "Solicitar" */
   if (Auth.isBibliotecario()) {
+    /* ── Vista bibliotecario ── */
     document.getElementById('btnSolicitarPrestamo').style.display = 'none';
     document.getElementById('tabVencerItem').classList.remove('d-none');
     document.getElementById('prestamosTitle').textContent    = 'Gestión de Préstamos';
-    document.getElementById('prestamosSubtitle').textContent = 'Seguimiento de devoluciones y préstamos del sistema';
+    document.getElementById('prestamosSubtitle').textContent = 'Todos los préstamos del sistema';
 
-    try {
-      prestamosVencer = await API.getPrestamosVencer();
-    } catch {
-      prestamosVencer = [];
-    }
+    const [apiRes, vencerRes] = await Promise.allSettled([
+      API.getPrestamos(),
+      API.getPrestamosVencer(),
+    ]);
+    todosPrestamosAPI = apiRes.status    === 'fulfilled' ? apiRes.value    : [];
+    prestamosVencer   = vencerRes.status === 'fulfilled' ? vencerRes.value : [];
+
+  } else {
+    /* ── Vista estudiante / docente ── */
+    prestamosLocales = Auth.getPrestamosLocales();
   }
 
   actualizarStats();
@@ -42,31 +44,41 @@ let estadoActual      = 'activo';
 /* ── Stats ────────────────────────────────────────────────────── */
 
 function actualizarStats() {
-  const activos   = prestamosLocales.filter(p => p.estado === 'activo').length;
-  const devueltos = prestamosLocales.filter(p => p.estado === 'devuelto').length;
-  const porVencer = prestamosLocales.filter(p => {
-    if (p.estado !== 'activo') return false;
-    const dias = Components.diasRestantes(p.fecha_devolucion_esperada);
-    return dias !== null && dias >= 0 && dias <= 2;
-  }).length;
-  const vencidos  = prestamosLocales.filter(p => {
-    if (p.estado !== 'activo') return false;
-    const dias = Components.diasRestantes(p.fecha_devolucion_esperada);
-    return dias !== null && dias < 0;
-  }).length;
+  if (Auth.isBibliotecario()) {
+    const activos   = todosPrestamosAPI.filter(p => p.estado === 'activo').length;
+    const devueltos = todosPrestamosAPI.filter(p => p.estado === 'devuelto').length;
+    const vencidos  = todosPrestamosAPI.filter(p =>
+      p.estado === 'activo' && Components.diasRestantes(p.fecha_devolucion_esperada) < 0
+    ).length;
 
-  document.getElementById('cntActivos').textContent   = activos;
-  document.getElementById('cntDevueltos').textContent  = devueltos;
-  document.getElementById('cntPorVencer').textContent  = Auth.isBibliotecario() ? prestamosVencer.length : porVencer;
-  document.getElementById('cntVencidos').textContent   = vencidos;
+    document.getElementById('cntActivos').textContent   = activos;
+    document.getElementById('cntDevueltos').textContent  = devueltos;
+    document.getElementById('cntPorVencer').textContent  = prestamosVencer.length;
+    document.getElementById('cntVencidos').textContent   = vencidos;
+  } else {
+    const activos   = prestamosLocales.filter(p => p.estado === 'activo').length;
+    const devueltos = prestamosLocales.filter(p => p.estado === 'devuelto').length;
+    const porVencer = prestamosLocales.filter(p => {
+      if (p.estado !== 'activo') return false;
+      const d = Components.diasRestantes(p.fecha_devolucion_esperada);
+      return d !== null && d >= 0 && d <= 2;
+    }).length;
+    const vencidos  = prestamosLocales.filter(p => {
+      if (p.estado !== 'activo') return false;
+      return Components.diasRestantes(p.fecha_devolucion_esperada) < 0;
+    }).length;
+
+    document.getElementById('cntActivos').textContent   = activos;
+    document.getElementById('cntDevueltos').textContent  = devueltos;
+    document.getElementById('cntPorVencer').textContent  = porVencer;
+    document.getElementById('cntVencidos').textContent   = vencidos;
+  }
 }
 
 /* ── Filtrar y renderizar ─────────────────────────────────────── */
 
 function filtrarEstado(estado) {
   estadoActual = estado;
-
-  /* Actualizar tabs activos */
   ['tabActivos','tabDevueltos','tabTodos','tabVencer'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
@@ -80,20 +92,94 @@ function filtrarEstado(estado) {
 
 function renderPrestamos(estado) {
   const container = document.getElementById('prestamosTableContainer');
-  const titulo    = {
+  const titulos   = {
     activo:     'Préstamos Activos',
     devuelto:   'Préstamos Devueltos',
     todos:      'Todos los Préstamos',
     por_vencer: 'Préstamos por Vencer en el Sistema',
   };
-
-  document.getElementById('tablaTitle').textContent = titulo[estado] || 'Préstamos';
+  document.getElementById('tablaTitle').textContent = titulos[estado] || 'Préstamos';
 
   if (estado === 'por_vencer') {
     renderVencer(container);
     return;
   }
 
+  if (Auth.isBibliotecario()) {
+    renderTablaBibliotecario(container, estado);
+  } else {
+    renderTablaUsuario(container, estado);
+  }
+}
+
+/* ── Tabla para Bibliotecario (datos de API) ─────────────────── */
+
+function renderTablaBibliotecario(container, estado) {
+  const lista = estado === 'todos'
+    ? todosPrestamosAPI
+    : todosPrestamosAPI.filter(p => p.estado === estado);
+
+  document.getElementById('contadorBadge').textContent = lista.length;
+
+  if (lista.length === 0) {
+    const msgs = {
+      activo:   ['fa-inbox',        'Sin préstamos activos',    'No hay préstamos activos en el sistema'],
+      devuelto: ['fa-check-circle', 'Sin préstamos devueltos',  'Las devoluciones aparecerán aquí'],
+      todos:    ['fa-book',         'Sin préstamos registrados','Aún no hay préstamos en el sistema'],
+    };
+    const [icon, title, sub] = msgs[estado] || ['fa-book', 'Sin préstamos', ''];
+    Components.empty(container, icon, title, sub);
+    return;
+  }
+
+  const rows = lista.map(p => {
+    const diasBadge   = p.estado === 'activo' ? Components.diasBadge(p.fecha_devolucion_esperada) : '';
+    const estadoBadge = estadoBadgeHtml(p);
+    const fechaPrest  = p.fecha_salida || p.fecha_prestamo || p.created_at;
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:500">${escHtml(p.titulo)}</div>
+          <div class="text-muted" style="font-size:.78rem;">${escHtml(p.autor)}</div>
+          <div style="font-size:.7rem;margin-top:2px;"><span class="isbn-badge">${escHtml(p.isbn || '')}</span></div>
+        </td>
+        <td>
+          <div style="font-size:.84rem;font-weight:500;">${escHtml(p.usuario_nombre)}</div>
+          <div class="text-muted" style="font-size:.76rem;">${escHtml(p.usuario_email)}</div>
+        </td>
+        <td class="text-muted" style="font-size:.83rem;white-space:nowrap;">${Components.fechaCorta(fechaPrest)}</td>
+        <td class="text-muted" style="font-size:.83rem;white-space:nowrap;">${Components.fechaCorta(p.fecha_devolucion_esperada)}</td>
+        <td>${estadoBadge}</td>
+        <td>${diasBadge}</td>
+        <td>
+          ${p.estado === 'devuelto'
+            ? `<span class="text-muted" style="font-size:.78rem;">${Components.fechaCorta(p.fecha_devolucion_real)}</span>`
+            : '—'}
+        </td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="table-responsive">
+      <table class="table-custom w-100">
+        <thead><tr>
+          <th>Libro</th>
+          <th>Usuario</th>
+          <th>F. Préstamo</th>
+          <th>F. Vencimiento</th>
+          <th>Estado</th>
+          <th>Días restantes</th>
+          <th>F. Devolución</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* ── Tabla para Estudiante / Docente (datos de localStorage) ─── */
+
+function renderTablaUsuario(container, estado) {
   const lista = estado === 'todos'
     ? prestamosLocales
     : prestamosLocales.filter(p => p.estado === estado);
@@ -101,14 +187,10 @@ function renderPrestamos(estado) {
   document.getElementById('contadorBadge').textContent = lista.length;
 
   if (lista.length === 0) {
-    const esBibliotecario = Auth.isBibliotecario();
     const msgs = {
-      activo:   ['fa-inbox',       'Sin préstamos activos',
-                 esBibliotecario ? 'Los usuarios activos aparecerán aquí' : 'Ve al catálogo para solicitar un libro'],
-      devuelto: ['fa-check-circle','Sin préstamos devueltos',
-                 esBibliotecario ? 'Las devoluciones registradas aparecerán aquí' : 'Aquí aparecerán los libros que ya devolviste'],
-      todos:    ['fa-book',        'Sin historial de préstamos',
-                 esBibliotecario ? 'Aún no hay préstamos registrados en el sistema' : 'Aún no has solicitado ningún libro'],
+      activo:   ['fa-inbox',        'Sin préstamos activos',    'Ve al catálogo para solicitar un libro'],
+      devuelto: ['fa-check-circle', 'Sin préstamos devueltos',  'Aquí aparecerán los libros que ya devolviste'],
+      todos:    ['fa-book',         'Sin historial de préstamos','Aún no has solicitado ningún libro'],
     };
     const [icon, title, sub] = msgs[estado] || ['fa-book', 'Sin préstamos', ''];
     Components.empty(container, icon, title, sub);
@@ -117,11 +199,6 @@ function renderPrestamos(estado) {
 
   const rows = lista.map(p => {
     const diasBadge = p.estado === 'activo' ? Components.diasBadge(p.fecha_devolucion_esperada) : '';
-    const estadoBadge = p.estado === 'devuelto'
-      ? `<span class="badge-status bs-devuelto"><i class="fas fa-check"></i> Devuelto</span>`
-      : (Components.diasRestantes(p.fecha_devolucion_esperada) < 0
-          ? `<span class="badge-status bs-vencido"><i class="fas fa-exclamation-circle"></i> Vencido</span>`
-          : `<span class="badge-status bs-activo"><i class="fas fa-circle"></i> Activo</span>`);
 
     return `
       <tr>
@@ -132,7 +209,7 @@ function renderPrestamos(estado) {
         </td>
         <td class="text-muted" style="font-size:.83rem;white-space:nowrap;">${Components.fechaCorta(p.fecha_prestamo)}</td>
         <td class="text-muted" style="font-size:.83rem;white-space:nowrap;">${Components.fechaCorta(p.fecha_devolucion_esperada)}</td>
-        <td>${estadoBadge}</td>
+        <td>${estadoBadgeHtml(p)}</td>
         <td>${diasBadge}</td>
         <td>
           ${p.estado === 'activo' ? `
@@ -162,6 +239,8 @@ function renderPrestamos(estado) {
     </div>`;
 }
 
+/* ── Tabla por vencer (bibliotecario) ────────────────────────── */
+
 function renderVencer(container) {
   document.getElementById('contadorBadge').textContent = prestamosVencer.length;
 
@@ -177,7 +256,7 @@ function renderVencer(container) {
         <div class="text-muted" style="font-size:.78rem;">${escHtml(p.autor)}</div>
       </td>
       <td>
-        <div style="font-weight:500;font-size:.855rem;">${escHtml(p.nombre)}</div>
+        <div style="font-size:.84rem;font-weight:500;">${escHtml(p.nombre)}</div>
         <div class="text-muted" style="font-size:.77rem;">${escHtml(p.email)}</div>
       </td>
       <td class="text-muted" style="font-size:.83rem;white-space:nowrap;">${Components.fechaCorta(p.fecha_devolucion_esperada)}</td>
@@ -189,18 +268,14 @@ function renderVencer(container) {
     <div class="table-responsive">
       <table class="table-custom w-100">
         <thead><tr>
-          <th>Libro</th>
-          <th>Usuario</th>
-          <th>Vence</th>
-          <th>Días</th>
-          <th>Estado</th>
+          <th>Libro</th><th>Usuario</th><th>Vence</th><th>Días</th><th>Estado</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
 }
 
-/* ── Devolver ─────────────────────────────────────────────────── */
+/* ── Devolver (solo estudiante / docente) ────────────────────── */
 
 async function devolverLibro(prestamoId, titulo) {
   if (!confirm(`¿Confirmas la devolución de:\n"${titulo}"?`)) return;
@@ -217,7 +292,15 @@ async function devolverLibro(prestamoId, titulo) {
   }
 }
 
-/* ── Utils ───────────────────────────────────────────────────── */
+/* ── Helpers ─────────────────────────────────────────────────── */
+
+function estadoBadgeHtml(p) {
+  if (p.estado === 'devuelto')
+    return `<span class="badge-status bs-devuelto"><i class="fas fa-check"></i> Devuelto</span>`;
+  if (Components.diasRestantes(p.fecha_devolucion_esperada) < 0)
+    return `<span class="badge-status bs-vencido"><i class="fas fa-exclamation-circle"></i> Vencido</span>`;
+  return `<span class="badge-status bs-activo"><i class="fas fa-circle"></i> Activo</span>`;
+}
 
 function escHtml(str) {
   if (!str) return '';
