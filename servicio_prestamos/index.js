@@ -81,7 +81,11 @@ app.post('/prestamos',
         `INSERT INTO prestamos (usuario_id, libro_id, isbn, fecha_devolucion_esperada)
          VALUES ($1, $2, $3, $4) RETURNING *`,
         [req.user.id, libro_id, libro.isbn, fechaDevolucion]
-    );/* se registra el préstamo y se devuelve el préstamo registrado*/
+    );
+    await pool.query(
+        'UPDATE libros SET cantidad_disponible = cantidad_disponible - 1 WHERE id = $1',
+        [libro_id]
+    );
     res.status(201).json({
         mensaje: 'Préstamo registrado exitosamente',
         prestamo: result.rows[0],
@@ -108,6 +112,10 @@ app.patch('/prestamos/:id/devolver', authMiddleware, async (req, res) => {
     const result = await pool.query(
         `UPDATE prestamos SET estado='devuelto', fecha_devolucion_real=NOW() WHERE id=$1 RETURNING *`,
         [req.params.id]
+    );
+    await pool.query(
+        'UPDATE libros SET cantidad_disponible = cantidad_disponible + 1 WHERE id = $1',
+        [prestamo.rows[0].libro_id]
     );
     res.json({ mensaje: 'Libro devuelto exitosamente', prestamo: result.rows[0] });
     } catch (err) {

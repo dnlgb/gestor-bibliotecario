@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BiblioUni — Dashboard</title>
+  <title>ReBooks — Dashboard</title>
+  <link rel="icon" type="image/png" href="img/logoCur.png">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
   <link href="css/styles.css" rel="stylesheet">
@@ -78,7 +79,7 @@
         <div class="col-lg-7">
           <div class="content-card h-100">
             <div class="content-card-header">
-              <span class="content-card-title"><i class="fas fa-exchange-alt me-2 text-primary"></i>Mis Préstamos Activos</span>
+              <span class="content-card-title" id="cardPrestamosTitulo"><i class="fas fa-exchange-alt me-2 text-primary"></i>Mis Préstamos Activos</span>
               <a href="prestamos.html" class="btn btn-sm btn-outline-primary">Ver todos</a>
             </div>
             <div id="misPrestamosList">
@@ -102,7 +103,7 @@
                 <a href="catalogo.html" class="btn btn-outline-primary text-start">
                   <i class="fas fa-search me-2"></i>Buscar en el Catálogo
                 </a>
-                <a href="prestamos.html" class="btn btn-outline-secondary text-start">
+                <a href="prestamos.html" class="btn btn-outline-secondary text-start" id="linkPrestamos">
                   <i class="fas fa-list-ul me-2"></i>Ver Mis Préstamos
                 </a>
                 <a href="catalogo.html?disponible=true" class="btn btn-outline-success text-start" id="btnBuscarDisp">

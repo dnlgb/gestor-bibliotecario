@@ -23,6 +23,8 @@
         <i class="fas fa-chart-bar me-1"></i>Ver Reportes
       </a>`;
     document.getElementById('porVencerCard').style.display = '';
+    document.getElementById('linkPrestamos').innerHTML =
+      '<i class="fas fa-list-ul me-2"></i>Ver Préstamos';
   }
 
   /* Cargar datos en paralelo */
@@ -34,7 +36,7 @@
   /* ── Stats ─────────────────────────────────────────────── */
   if (librosRes.status === 'fulfilled') {
     const libros = librosRes.value;
-    const disponibles = libros.filter(l => l.cantidad_disponible > 0).length;
+    const disponibles = libros.reduce((sum, l) => sum + (l.cantidad_disponible || 0), 0);
     const categorias  = new Set(libros.map(l => l.categoria).filter(Boolean)).size;
 
     document.getElementById('statTotalLibros').textContent  = libros.length;
@@ -59,11 +61,50 @@
     document.getElementById('statPorVencer').textContent = '—';
   }
 
-  /* ── Mis préstamos (localStorage) ─────────────────────── */
-  renderMisPrestamos();
+  /* ── Préstamos en card principal ───────────────────────── */
+  if (Auth.isBibliotecario()) {
+    document.getElementById('cardPrestamosTitulo').innerHTML =
+      '<i class="fas fa-exchange-alt me-2 text-primary"></i>Préstamos Recientes';
+    await renderPrestamosBibliotecario();
+  } else {
+    renderMisPrestamos();
+  }
 })();
 
 /* ── Render helpers ──────────────────────────────────────────── */
+
+async function renderPrestamosBibliotecario() {
+  const container = document.getElementById('misPrestamosList');
+  try {
+    const lista = await API.getPrestamos({ estado: 'activo' });
+    if (lista.length === 0) {
+      Components.empty(container, 'fa-inbox', 'Sin préstamos activos', 'No hay préstamos activos en el sistema');
+      return;
+    }
+    const rows = lista.slice(0, 5).map(p => `
+      <tr>
+        <td>
+          <div style="font-weight:500;font-size:.855rem;">${p.titulo}</div>
+          <div style="font-size:.77rem;color:var(--muted);">${p.usuario_nombre}</div>
+        </td>
+        <td class="text-muted" style="font-size:.8rem;white-space:nowrap;">${Components.fechaCorta(p.fecha_devolucion_esperada)}</td>
+        <td>${Components.diasBadge(p.fecha_devolucion_esperada)}</td>
+      </tr>`).join('');
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="table-custom w-100">
+          <thead><tr>
+            <th>Libro / Usuario</th>
+            <th>Vence</th>
+            <th>Días</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch {
+    Components.empty(container, 'fa-exclamation-triangle', 'Error al cargar préstamos', 'Verifica que el servicio esté activo');
+  }
+}
 
 function renderMisPrestamos() {
   const container = document.getElementById('misPrestamosList');

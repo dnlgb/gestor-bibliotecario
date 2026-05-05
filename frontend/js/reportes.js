@@ -52,7 +52,7 @@ async function cargarReportes() {
 
 function renderStats() {
   document.getElementById('rStatLibros').textContent = libros.length;
-  document.getElementById('rStatDisp').textContent   = libros.filter(l => l.cantidad_disponible > 0).length;
+  document.getElementById('rStatDisp').textContent   = libros.reduce((sum, l) => sum + (l.cantidad_disponible || 0), 0);
   document.getElementById('rStatVencer').textContent = porVencer.length;
   document.getElementById('rStatCats').textContent   =
     new Set(libros.map(l => l.categoria).filter(Boolean)).size;

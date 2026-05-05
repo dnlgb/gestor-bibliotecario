@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   BiblioUni — Design System
+   ReBooks — Design System
    Paleta: Azul oscuro (#1a2744) + Blanco + Grises neutros
    ══════════════════════════════════════════════════════════════ */
 
@@ -57,13 +57,15 @@ body {
 .auth-logo-icon {
   width: 68px;
   height: 68px;
-  background: var(--accent-light);
+  background: #ffffff;
   border-radius: 18px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.12);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 1.7rem;
   color: var(--accent);
+  overflow: hidden;
 }
 
 .auth-card .nav-tabs {
@@ -118,8 +120,10 @@ body {
 
 .sidebar-logo {
   width: 40px; height: 40px;
-  background: var(--accent);
+  background: #ffffff;
   border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.15);
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;

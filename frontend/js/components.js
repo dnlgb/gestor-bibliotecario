@@ -20,9 +20,9 @@ const Components = {
     return `
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
-          <div class="sidebar-logo"><i class="fas fa-book-open"></i></div>
+          <div class="sidebar-logo"><img src="img/logoCur.png" alt="ReBooks" style="width:36px;height:36px;object-fit:contain;border-radius:8px;"></div>
           <div class="sidebar-brand">
-            <span class="brand-name">BiblioUni</span>
+            <span class="brand-name">ReBooks</span>
             <span class="brand-subtitle">Gestión Académica</span>
           </div>
         </div>
@@ -39,7 +39,7 @@ const Components = {
           <div class="nav-section">Principal</div>
           ${link('dashboard', 'dashboard.html', 'fas fa-chart-pie',       'Dashboard')}
           ${link('catalogo',  'catalogo.html',  'fas fa-book',            'Catálogo')}
-          ${link('prestamos', 'prestamos.html', 'fas fa-exchange-alt',    'Mis Préstamos')}
+          ${link('prestamos', 'prestamos.html', 'fas fa-exchange-alt',    esBibliotecario ? 'Préstamos' : 'Mis Préstamos')}
           ${esBibliotecario ? `
           <div class="nav-section">Administración</div>
           ${link('reportes',  'reportes.html',  'fas fa-chart-bar',       'Reportes')}
