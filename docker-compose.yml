@@ -1,0 +1,18 @@
+
+services:
+  db:
+    image: postgres:13
+    container_name: biblioteca_db
+    restart: always
+    environment:
+      POSTGRES_USER: biblioteca_user
+      POSTGRES_PASSWORD: biblioteca_pass
+      POSTGRES_DB: biblioteca_db
+    ports:
+      - "5432:5432"
+    networks:
+      - biblioteca_net
+
+networks:
+  biblioteca_net:
+    driver: bridge
